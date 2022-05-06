@@ -18,10 +18,16 @@ package net.sf.ehcache.distribution;
 
 
 import net.sf.ehcache.AbstractCacheTest;
+import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.ObjectAssert;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -36,6 +42,9 @@ import java.util.Map;
 
 import net.sf.ehcache.distribution.RmiEventMessage.RmiEventType;
 
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terracotta.test.categories.CheckShorts;
@@ -47,10 +56,13 @@ import org.terracotta.test.categories.CheckShorts;
  * @version $Id$
  */
 @Category(CheckShorts.class)
+@RunWith(MockitoJUnitRunner.class)
 public class EventMessageTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(EventMessageTest.class.getName());
 
+    @Mock
+    Ehcache cache;
 
     /**
      * SoftReference behaviour testing.
@@ -58,49 +70,99 @@ public class EventMessageTest {
     @Test
     public void testSoftReferences() {
         AbstractCacheTest.forceVMGrowth();
-        Map map = new HashMap();
+        Map<Integer, SoftReference<byte[]>> map = new HashMap<>();
         for (int i = 0; i < 100; i++) {
-            map.put(Integer.valueOf(i), new SoftReference(new byte[1000000]));
+            map.put(i, new SoftReference<byte[]>(new byte[1000000]));
         }
 
         int counter = 0;
         for (int i = 0; i < 100; i++) {
-            SoftReference softReference = (SoftReference) map.get(Integer.valueOf(i));
-            byte[] payload = (byte[]) softReference.get();
+            SoftReference<byte[]> softReference = map.get(i);
+            byte[] payload = softReference.get();
             if (payload != null) {
                 LOG.info("Value found for " + i);
                 counter++;
             }
         }
-        //This one varies by operating system and architecture. 
-        assertTrue("You should get more than " + counter + " out of SoftReferences", counter >= 13);
 
+        //This one varies by operating system and architecture.
+        assertThat(counter).describedAs("You should get more than 13 out of SoftReferences").isGreaterThan(13);
     }
 
     /**
      * test serialization and deserialization of EventMessage.
      */
     @Test
-    public void testSerialization() throws IOException, ClassNotFoundException {
+    public void testSerializationOfPut() throws IOException, ClassNotFoundException {
 
-        RmiEventMessage eventMessage = new RmiEventMessage(null, RmiEventType.PUT, "key", new Element("key", "element"));
+        RmiEventMessage sourceEventMessage = new RmiEventMessage(cache, new Element("key", "element"));
 
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bout);
-        oos.writeObject(eventMessage);
-        byte[] serializedValue = bout.toByteArray();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
+        oos.writeObject(sourceEventMessage);
         oos.close();
-        RmiEventMessage eventMessage2 = null;
-        ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue);
-        ObjectInputStream ois = new ObjectInputStream(bin);
-        eventMessage2 = (RmiEventMessage) ois.readObject();
+
+        ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()));
+        RmiEventMessage eventMessage = (RmiEventMessage) ois.readObject();
         ois.close();
 
         //Check after Serialization
-        assertEquals("key", eventMessage2.getSerializableKey());
-        assertEquals("element", eventMessage2.getElement().getObjectValue());
-        assertEquals(RmiEventType.PUT, eventMessage2.getType());
+        SoftAssertions.assertSoftly((assertions) -> {
+            assertions.assertThat(eventMessage.getType()).isEqualTo(RmiEventType.PUT);
+
+            ObjectAssert<Element> elementDiffer = assertions.assertThat(eventMessage.getElement()).describedAs("element differ").isNotNull();
+            elementDiffer.extracting(Element::getObjectKey).describedAs("key differ").isEqualTo("key");
+            elementDiffer.extracting(Element::getObjectValue).describedAs("value differ").isEqualTo("element");
+        });
     }
 
+    /**
+     * test serialization and deserialization of EventMessage.
+     */
+    @Test
+    public void testSerializationOfRemove() throws IOException, ClassNotFoundException {
 
+        RmiEventMessage sourceEventMessage = new RmiEventMessage(cache, "key");
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bout);
+        oos.writeObject(sourceEventMessage);
+        byte[] serializedValue = bout.toByteArray();
+
+        ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue);
+        ObjectInputStream ois = new ObjectInputStream(bin);
+        RmiEventMessage eventMessage = (RmiEventMessage) ois.readObject();
+
+        //Check after Serialization
+        SoftAssertions.assertSoftly((assertions) -> {
+            assertions.assertThat(eventMessage.getType()).isEqualTo(RmiEventType.REMOVE);
+            assertions.assertThat(eventMessage.getElement()).describedAs("element differ").isNull();
+            assertions.assertThat(eventMessage.getSerializableKey()).describedAs("key differ").isEqualTo("key");
+        });
+    }
+
+    /**
+     * test serialization and deserialization of EventMessage.
+     */
+    @Test
+    public void testSerializationOfRemoveAll() throws IOException, ClassNotFoundException {
+
+        RmiEventMessage sourceEventMessage = new RmiEventMessage(cache);
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bout);
+        oos.writeObject(sourceEventMessage);
+        byte[] serializedValue = bout.toByteArray();
+
+        ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue);
+        ObjectInputStream ois = new ObjectInputStream(bin);
+        RmiEventMessage eventMessage = (RmiEventMessage) ois.readObject();
+
+        //Check after Serialization
+        SoftAssertions.assertSoftly((assertions) -> {
+            assertions.assertThat(eventMessage.getType()).isEqualTo(RmiEventType.REMOVE_ALL);
+            assertions.assertThat(eventMessage.getElement()).describedAs("element differ").isNull();
+            assertions.assertThat(eventMessage.getSerializableKey()).describedAs("key differ").isNull();
+        });
+    }
 }

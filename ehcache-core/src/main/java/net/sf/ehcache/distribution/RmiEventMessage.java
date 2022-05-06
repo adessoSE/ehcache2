@@ -1,30 +1,32 @@
 /**
- *  Copyright Terracotta, Inc.
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
 
-import java.io.Serializable;
 import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.hibernate.EhCacheRegionFactory;
+
+import java.io.Serializable;
+import java.util.Objects;
 
 /**
- *
  * @author cdennis
  */
-public final class RmiEventMessage extends EventMessage {
+public class RmiEventMessage extends EventMessage {
 
     /**
      * Enumeration of event types.
@@ -35,12 +37,12 @@ public final class RmiEventMessage extends EventMessage {
          * A put or update event.
          */
         PUT,
-        
+
         /**
          * A remove or invalidate event.
          */
         REMOVE,
-        
+
         /**
          * A removeAll, which removes all elements from a cache
          */
@@ -58,32 +60,72 @@ public final class RmiEventMessage extends EventMessage {
     private final Element element;
 
     /**
-     * Full constructor.
-     *
-     * @param cache
-     * @param type
-     * @param key
-     * @param element
+     * @param cache   source cache of the event
+     * @param type    type of event
+     * @param key     key in cache
+     * @param element element in cache
      */
-    public RmiEventMessage(Ehcache cache, RmiEventType type, Serializable key, Element element) {
+    private RmiEventMessage(Ehcache cache, RmiEventType type, Serializable key, Element element) {
         super(cache, key);
+        Objects.requireNonNull(type, "type not set.");
         this.type = type;
         this.element = element;
     }
-    
+
     /**
-     * Gets the event.
-     *
-     * @return either PUT or REMOVE
+     * RmiEventMessage of remove all
      */
-    public final RmiEventType getType() {
+    public RmiEventMessage(Ehcache cache) {
+        this(cache, RmiEventType.REMOVE_ALL, null, null);
+    }
+
+    /**
+     * RmiEventMessage of remove
+     */
+    public RmiEventMessage(Ehcache cache, Serializable key) {
+        this(cache, RmiEventType.REMOVE, key, null);
+    }
+
+    /**
+     * RmiEventMessage of put
+     */
+    public RmiEventMessage(Ehcache cache, Element element) {
+        this(cache, RmiEventType.PUT, null, element);
+    }
+
+    /**
+     * @return the event type.
+     */
+    public RmiEventType getType() {
         return type;
     }
 
     /**
      * @return the element component of the message. null if a REMOVE event
      */
-    public final Element getElement() {
+    public Element getElement() {
         return element;
+    }
+
+    public boolean isSerializable() {
+        switch (type) {
+            case PUT:
+                return element.isSerializable();
+            case REMOVE:
+            case REMOVE_ALL:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + " [" +
+                "type = " + this.type +
+                ", key = " + this.getSerializableKey() +
+                ", element = " + this.element +
+                ", cache = " + this.getEhcache().getName() +
+                "]";
     }
 }

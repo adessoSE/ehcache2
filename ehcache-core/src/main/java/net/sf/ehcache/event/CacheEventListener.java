@@ -17,6 +17,7 @@
 package net.sf.ehcache.event;
 
 import net.sf.ehcache.CacheException;
+import net.sf.ehcache.Disposable;
 import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 
@@ -44,7 +45,7 @@ import net.sf.ehcache.Element;
  * @see CacheManagerEventListener
  * @since 1.2
  */
-public interface CacheEventListener extends Cloneable {
+public interface CacheEventListener extends Cloneable, Disposable {
 
     /**
      * Called immediately after an attempt to remove an element. The remove method will block until
@@ -160,10 +161,5 @@ public interface CacheEventListener extends Cloneable {
      * @return a clone
      * @throws CloneNotSupportedException if the listener could not be cloned.
      */
-    public Object clone() throws CloneNotSupportedException;
-
-    /**
-     * Give the listener a chance to cleanup and free resources when no longer needed
-     */
-    void dispose();
+    Object clone() throws CloneNotSupportedException;
 }

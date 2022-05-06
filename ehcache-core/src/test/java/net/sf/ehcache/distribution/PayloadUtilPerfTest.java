@@ -24,11 +24,10 @@ public class PayloadUtilPerfTest {
      * 376 µs per one gzipping each time.
      * .1 µs if we compare hashCodes on the String and only gzip as necessary.
      *
-     * @throws java.io.IOException
      * @throws InterruptedException
      */
     @Test
-    public void testGzipSanityAndPerformance() throws IOException, InterruptedException {
+    public void testGzipSanityAndPerformance() throws InterruptedException {
         String payload = createReferenceString();
         // warmup vm
         for (int i = 0; i < 10; i++) {

@@ -44,11 +44,11 @@ public interface CacheManagerPeerProvider {
     /**
      * @return a list of {@link CachePeer} peers for the given cache, excluding the local peer.
      */
-    List listRemoteCachePeers(Ehcache cache) throws CacheException;
+    List<CachePeer> listRemoteCachePeers(Ehcache cache) throws CacheException;
 
     /**
      * Notifies providers to initialise themselves.
-     * @throws CacheException
+     * @throws CacheException in case of a
      */
     void init();
 

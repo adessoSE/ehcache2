@@ -69,6 +69,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.22.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
       <scope>test</scope>
@@ -467,6 +473,8 @@
       <id>fast</id>
       <properties>
         <skipCheckstyle>true</skipCheckstyle>
+        <skipTests>true</skipTests>
+        <skipJavadoc>true</skipJavadoc>
       </properties>
     </profile>
   </profiles>

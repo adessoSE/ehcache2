@@ -1,33 +1,31 @@
 /**
- *  Copyright Terracotta, Inc.
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
 
 import net.sf.ehcache.CacheManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Sends heartbeats to a multicast group containing a compressed list of URLs.
@@ -48,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * @author Greg Luck
  * @version $Id$
  */
-public final class MulticastKeepaliveHeartbeatSender {
+public class MulticastKeepaliveHeartbeatSender {
 
 
     private static final Logger LOG = LoggerFactory.getLogger(MulticastKeepaliveHeartbeatSender.class.getName());
@@ -64,23 +62,23 @@ public final class MulticastKeepaliveHeartbeatSender {
     private final InetAddress groupMulticastAddress;
     private final Integer groupMulticastPort;
     private final Integer timeToLive;
-    private MulticastServerThread serverThread;
+    private final MulticastServerThread serverThread = new MulticastServerThread();
     private volatile boolean stopped;
     private final CacheManager cacheManager;
-    private InetAddress hostAddress;
+    private final InetAddress hostAddress;
 
     /**
      * Constructor.
      *
      * @param cacheManager     the bound CacheManager. Each CacheManager has a maximum of one sender
-     * @param multicastAddress
-     * @param multicastPort
      * @param timeToLive       See class description for the meaning of this parameter.
      */
-    public MulticastKeepaliveHeartbeatSender(CacheManager cacheManager,
-                                             InetAddress multicastAddress, Integer multicastPort,
-                                             Integer timeToLive,
-                                             InetAddress hostAddress) {
+    public MulticastKeepaliveHeartbeatSender(
+            CacheManager cacheManager,
+            InetAddress multicastAddress,
+            Integer multicastPort,
+            Integer timeToLive,
+            InetAddress hostAddress) {
         this.cacheManager = cacheManager;
         this.groupMulticastAddress = multicastAddress;
         this.groupMulticastPort = multicastPort;
@@ -92,15 +90,14 @@ public final class MulticastKeepaliveHeartbeatSender {
     /**
      * Start the heartbeat thread
      */
-    public final void init() {
-        serverThread = new MulticastServerThread();
+    public void init() {
         serverThread.start();
     }
 
     /**
      * Shutdown this heartbeat sender
      */
-    public final synchronized void dispose() {
+    public synchronized void dispose() {
         stopped = true;
         notifyAll();
         serverThread.interrupt();
@@ -109,10 +106,10 @@ public final class MulticastKeepaliveHeartbeatSender {
     /**
      * A thread which sends a multicast heartbeat every second
      */
-    private final class MulticastServerThread extends Thread {
+    private class MulticastServerThread extends Thread {
 
         private MulticastSocket socket;
-        private List compressedUrlListList = new ArrayList();
+        private List<byte[]> compressedUrlListList = new ArrayList<>();
         private int cachePeersHash;
 
 
@@ -125,23 +122,19 @@ public final class MulticastKeepaliveHeartbeatSender {
         }
 
         @Override
-        public final void run() {
+        public void run() {
             while (!stopped) {
                 try {
-                    socket = new MulticastSocket(groupMulticastPort.intValue());
+                    socket = new MulticastSocket(groupMulticastPort);
                     if (hostAddress != null) {
                         socket.setInterface(hostAddress);
                     }
-                    socket.setTimeToLive(timeToLive.intValue());
+                    socket.setTimeToLive(timeToLive);
                     socket.joinGroup(groupMulticastAddress);
 
                     while (!stopped) {
-                        List buffers = createCachePeersPayload();
-                        for (Iterator iter = buffers.iterator(); iter.hasNext();) {
-                            byte[] buffer = (byte[]) iter.next();
-                            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, groupMulticastAddress,
-                                    groupMulticastPort.intValue());
-                            socket.send(packet);
+                        for (byte[] buffer : createCachePeersPayload()) {
+                            socket.send(new DatagramPacket(buffer, buffer.length, groupMulticastAddress, groupMulticastPort));
                         }
                         try {
                             synchronized (this) {
@@ -149,14 +142,14 @@ public final class MulticastKeepaliveHeartbeatSender {
                             }
                         } catch (InterruptedException e) {
                             if (!stopped) {
-                                LOG.error("Error receiving heartbeat. Initial cause was " + e.getMessage(), e);
+                                LOG.error("Sleep after send interrupted.", e);
                             }
                         }
                     }
                 } catch (IOException e) {
-                    LOG.debug("Error on multicast socket", e);
+                    LOG.error("Error on multicast socket", e);
                 } catch (Throwable e) {
-                    LOG.info("Unexpected throwable in run thread. Continuing..." + e.getMessage(), e);
+                    LOG.error("Unexpected throwable in run thread. Continuing...", e);
                 } finally {
                     closeSocket();
                 }
@@ -164,7 +157,7 @@ public final class MulticastKeepaliveHeartbeatSender {
                     try {
                         sleep(heartBeatInterval);
                     } catch (InterruptedException e) {
-                        LOG.error("Sleep after error interrupted. Initial cause was " + e.getMessage(), e);
+                        LOG.error("Sleep after error interrupted.", e);
                     }
                 }
             }
@@ -178,15 +171,15 @@ public final class MulticastKeepaliveHeartbeatSender {
          *
          * @return a gzipped byte[]
          */
-        private List createCachePeersPayload() {
+        private List<byte[]> createCachePeersPayload() {
 
             CacheManagerPeerListener cacheManagerPeerListener = cacheManager.getCachePeerListener("RMI");
             if (cacheManagerPeerListener == null) {
                 LOG.warn("The RMICacheManagerPeerListener is missing. You need to configure a cacheManagerPeerListenerFactory" +
                         " with class=\"net.sf.ehcache.distribution.RMICacheManagerPeerListenerFactory\" in ehcache.xml.");
-                return new ArrayList();
+                return new ArrayList<>();
             }
-            List localCachePeers = cacheManagerPeerListener.getBoundCachePeers();
+            List<CachePeer> localCachePeers = cacheManagerPeerListener.getBoundCachePeers();
             int newCachePeersHash = localCachePeers.hashCode();
             if (cachePeersHash != newCachePeersHash) {
                 cachePeersHash = newCachePeersHash;
@@ -206,9 +199,9 @@ public final class MulticastKeepaliveHeartbeatSender {
          * <p>
          * <p> If this thread is blocked in an invocation of the {@link
          * Object#wait() wait()}, {@link Object#wait(long) wait(long)}, or {@link
-         * Object#wait(long,int) wait(long, int)} methods of the {@link Object}
+         * Object#wait(long, int) wait(long, int)} methods of the {@link Object}
          * class, or of the {@link #join()}, {@link #join(long)}, {@link
-         * #join(long,int)}, {@link #sleep(long)}, or {@link #sleep(long,int)},
+         * #join(long, int)}, {@link #sleep(long)}, or {@link #sleep(long, int)},
          * methods of this class, then its interrupt status will be cleared and it
          * will receive an {@link InterruptedException}.
          * <p>
@@ -230,7 +223,7 @@ public final class MulticastKeepaliveHeartbeatSender {
          * @throws SecurityException if the current thread cannot modify this thread
          */
         @Override
-        public final void interrupt() {
+        public void interrupt() {
             closeSocket();
             super.interrupt();
         }

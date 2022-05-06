@@ -35,6 +35,7 @@ import java.net.SocketTimeoutException;
 import java.rmi.RemoteException;
 import java.rmi.UnmarshalException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -175,11 +176,7 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
             peerListener.init();
 
             CachePeer cachePeer = new ManualRMICacheManagerPeerProvider().lookupRemoteCachePeer(rmiCachePeer.getUrl());
-            Element element = new Element("1", new Date());
-            RmiEventMessage eventMessage = new RmiEventMessage(null, RmiEventType.PUT, null, element);
-            List eventMessages = new ArrayList();
-            eventMessages.add(eventMessage);
-            cachePeer.send(eventMessages);
+            cachePeer.send(Collections.singletonList(new RmiEventMessage(cache, new Element("1", new Date()))));
         } finally {
             manager.shutdown();
         }

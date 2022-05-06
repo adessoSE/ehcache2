@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -34,6 +34,7 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.ExportException;
 import java.rmi.server.UnicastRemoteObject;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -43,6 +44,8 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.text.MessageFormat.format;
 
 /**
  * A cache server which exposes available cache operations remotely through RMI.
@@ -78,7 +81,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     /**
      * The cache peers. The value is an RMICachePeer.
      */
-    protected final Map cachePeers = new HashMap();
+    protected final Map<String, RMICachePeer> localDistributedCaches = new HashMap<>();
 
     /**
      * status.
@@ -94,9 +97,9 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     private boolean registryCreated;
     private final String hostName;
 
-    private CacheManager cacheManager;
-    private Integer socketTimeoutMillis;
-    private Integer remoteObjectPort;
+    private final CacheManager cacheManager;
+    private final Integer socketTimeoutMillis;
+    private final Integer remoteObjectPort;
 
     /**
      * Constructor with full arguments.
@@ -105,7 +108,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      *                            interfaces should specify this if they do not want it to be the default NIC.
      * @param port                a port in the range 1025 - 65536
      * @param remoteObjectPort    the port number on which the remote objects bound in the registry receive calls.
-                                  This defaults to a free port if not specified.
+     *                            This defaults to a free port if not specified.
      * @param cacheManager        the CacheManager this listener belongs to
      * @param socketTimeoutMillis TCP/IP Socket timeout when waiting on response
      */
@@ -123,7 +126,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         } else {
             this.hostName = calculateHostAddress();
         }
-        if (port == null || port.intValue() == 0) {
+        if (port == null || port == 0) {
             assignFreePort(false);
         } else {
             this.port = port;
@@ -133,7 +136,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         this.remoteObjectPort = remoteObjectPort;
 
         this.cacheManager = cacheManager;
-        if (socketTimeoutMillis == null || socketTimeoutMillis.intValue() < MINIMUM_SENSIBLE_TIMEOUT) {
+        if (socketTimeoutMillis == null || socketTimeoutMillis < MINIMUM_SENSIBLE_TIMEOUT) {
             throw new IllegalArgumentException("socketTimoutMillis must be a reasonable value greater than 200ms");
         }
         this.socketTimeoutMillis = socketTimeoutMillis;
@@ -149,7 +152,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         if (status != Status.STATUS_UNINITIALISED) {
             throw new IllegalStateException("Cannot change the port of an already started listener.");
         }
-        this.port = Integer.valueOf(this.getFreePort());
+        this.port = this.getFreePort();
         if (forced) {
             LOG.warn("Resolving RMI port conflict by automatically using a free TCP/IP port to listen on: " + this.port);
         } else {
@@ -204,10 +207,10 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         try {
             startRegistry();
             int counter = 0;
-            populateListOfRemoteCachePeers();
-            synchronized (cachePeers) {
-                for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-                    rmiCachePeer = (RMICachePeer) iterator.next();
+            Map<String, RMICachePeer> stringRMICachePeerMap = populateListOfRemoteCachePeers();
+            synchronized (stringRMICachePeerMap) {
+                for (RMICachePeer cachePeer : stringRMICachePeerMap.values()) {
+                    rmiCachePeer = cachePeer;
                     bind(rmiCachePeer.getUrl(), rmiCachePeer);
                     counter++;
                 }
@@ -266,26 +269,26 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     /**
      * Should be called on init because this is one of the last things that should happen on CacheManager startup.
      */
-    protected void populateListOfRemoteCachePeers() throws RemoteException {
-        String[] names = cacheManager.getCacheNames();
-        for (int i = 0; i < names.length; i++) {
-            String name = names[i];
+    protected Map<String, RMICachePeer> populateListOfRemoteCachePeers() throws RemoteException {
+        for (String name : cacheManager.getCacheNames()) {
             Ehcache cache = cacheManager.getEhcache(name);
-            synchronized (cachePeers) {
-                if (cachePeers.get(name) == null) {
-                    if (isDistributed(cache)) {
-                        RMICachePeer peer;
-                        if (cache.getCacheConfiguration().getTransactionalMode().isTransactional()) {
-                            peer = new TransactionalRMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
-                        } else {
-                            peer = new RMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
-                        }
-                        cachePeers.put(name, peer);
-                    }
+            synchronized (localDistributedCaches) {
+                if (isDistributed(cache) && !localDistributedCaches.containsKey(name)) {
+                    localDistributedCaches.put(name, createLocalRmiCachePeer(cache));
                 }
             }
         }
 
+        return localDistributedCaches;
+    }
+
+    private RMICachePeer createLocalRmiCachePeer(Ehcache cache) throws RemoteException {
+        if (cache.getCacheConfiguration().getTransactionalMode().isTransactional()) {
+
+            return new TransactionalRMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
+        }
+
+        return new RMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
     }
 
     /**
@@ -295,14 +298,10 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      * @return true if a <code>CacheReplicator</code> is found in the listeners
      */
     protected boolean isDistributed(Ehcache cache) {
-        Set listeners = cache.getCacheEventNotificationService().getCacheEventListeners();
-        for (Iterator iterator = listeners.iterator(); iterator.hasNext();) {
-            CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-            if (cacheEventListener instanceof CacheReplicator) {
-                return true;
-            }
-        }
-        return false;
+        return cache.getCacheEventNotificationService()
+                .getCacheEventListeners()
+                .stream()
+                .anyMatch(CacheReplicator.class::isInstance);
     }
 
     /**
@@ -318,12 +317,12 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      */
     protected void startRegistry() throws RemoteException {
         try {
-            registry = LocateRegistry.getRegistry(port.intValue());
+            registry = LocateRegistry.getRegistry(port);
             try {
                 registry.list();
             } catch (RemoteException e) {
                 //may not be created. Let's create it.
-                registry = LocateRegistry.createRegistry(port.intValue());
+                registry = LocateRegistry.createRegistry(port);
                 registryCreated = true;
             }
         } catch (ExportException exception) {
@@ -363,10 +362,9 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         }
         try {
             int counter = 0;
-            synchronized (cachePeers) {
-                for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-                    RMICachePeer rmiCachePeer = (RMICachePeer) iterator.next();
-                    disposeRMICachePeer(rmiCachePeer);
+            synchronized (localDistributedCaches) {
+                for (RMICachePeer cachePeer : localDistributedCaches.values()) {
+                    disposeRMICachePeer(cachePeer);
                     counter++;
                 }
                 stopRegistry();
@@ -439,15 +437,8 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      *
      * @return a list of <code>RMICachePeer</code> objects. The list if not live
      */
-    public List getBoundCachePeers() {
-        List cachePeerList = new ArrayList();
-        synchronized (cachePeers) {
-            for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-                RMICachePeer rmiCachePeer = (RMICachePeer) iterator.next();
-                cachePeerList.add(rmiCachePeer);
-            }
-        }
-        return cachePeerList;
+    public List<CachePeer> getBoundCachePeers() {
+        return new ArrayList<>(localDistributedCaches.values());
     }
 
     /**
@@ -511,41 +502,31 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      * @see net.sf.ehcache.event.CacheEventListener
      */
     public void notifyCacheAdded(String cacheName) throws CacheException {
-
-
-            LOG.debug("Adding to RMI listener", cacheName);
+        LOG.debug("Adding {} to RMI listener", cacheName);
 
         //Don't add if exists.
-        synchronized (cachePeers) {
-            if (cachePeers.get(cacheName) != null) {
+        synchronized (localDistributedCaches) {
+            if (localDistributedCaches.containsKey(cacheName)) {
                 return;
             }
         }
 
         Ehcache cache = cacheManager.getEhcache(cacheName);
         if (isDistributed(cache)) {
-            RMICachePeer rmiCachePeer = null;
             String url = null;
             try {
-                if (cache.getCacheConfiguration().getTransactionalMode().isTransactional()) {
-                    rmiCachePeer = new TransactionalRMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
-                } else {
-                    rmiCachePeer = new RMICachePeer(cache, hostName, port, remoteObjectPort, socketTimeoutMillis);
-                }
+                RMICachePeer rmiCachePeer = createLocalRmiCachePeer(cache);
                 url = rmiCachePeer.getUrl();
                 bind(url, rmiCachePeer);
+                synchronized (localDistributedCaches) {
+                    localDistributedCaches.put(cacheName, rmiCachePeer);
+                }
             } catch (Exception e) {
-                throw new CacheException("Problem starting listener for RMICachePeer "
-                        + url + ". Initial cause was " + e.getMessage(), e);
+                throw new CacheException(format("Problem starting listener for RMICachePeer {0}.", url), e);
             }
-
-            synchronized (cachePeers) {
-                cachePeers.put(cacheName, rmiCachePeer);
-            }
-
         }
         if (LOG.isDebugEnabled()) {
-            LOG.debug(cachePeers.size() + " RMICachePeers bound in registry for RMI listener");
+            LOG.debug(localDistributedCaches.size() + " RMICachePeers bound in registry for RMI listener");
         }
     }
 
@@ -564,18 +545,18 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     public void notifyCacheRemoved(String cacheName) {
 
 
-            LOG.debug("Removing from RMI listener", cacheName);
+        LOG.debug("Removing from RMI listener", cacheName);
 
         //don't remove if already removed.
-        synchronized (cachePeers) {
-            if (cachePeers.get(cacheName) == null) {
+        synchronized (localDistributedCaches) {
+            if (localDistributedCaches.get(cacheName) == null) {
                 return;
             }
         }
 
         RMICachePeer rmiCachePeer;
-        synchronized (cachePeers) {
-            rmiCachePeer = (RMICachePeer) cachePeers.remove(cacheName);
+        synchronized (localDistributedCaches) {
+            rmiCachePeer = (RMICachePeer) localDistributedCaches.remove(cacheName);
         }
         String url = null;
         try {
@@ -586,7 +567,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
         }
 
         if (LOG.isDebugEnabled()) {
-            LOG.debug(cachePeers.size() + " RMICachePeers bound in registry for RMI listener");
+            LOG.debug(localDistributedCaches.size() + " RMICachePeers bound in registry for RMI listener");
         }
     }
 
@@ -595,9 +576,8 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      * Package local method for testing
      */
     void addCachePeer(String name, RMICachePeer peer) {
-        synchronized (cachePeers) {
-            cachePeers.put(name, peer);
-
+        synchronized (localDistributedCaches) {
+            localDistributedCaches.put(name, peer);
         }
     }
 }

@@ -21,6 +21,7 @@ import net.sf.ehcache.Element;
 import net.sf.ehcache.util.CacheTransactionHelper;
 
 import java.io.Serializable;
+import java.lang.ref.Reference;
 import java.rmi.RemoteException;
 import java.util.List;
 
@@ -149,7 +150,7 @@ public class TransactionalRMICachePeer extends RMICachePeer {
     }
 
     @Override
-    public void send(List eventMessages) throws RemoteException {
+    public void send(List<RmiEventMessage> eventMessages) throws RemoteException {
         boolean started = CacheTransactionHelper.isTransactionStarted(cache);
         if (!started) {
             CacheTransactionHelper.beginTransactionIfNeeded(cache);

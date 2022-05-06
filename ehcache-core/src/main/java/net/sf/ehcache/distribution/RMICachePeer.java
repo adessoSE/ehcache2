@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -25,7 +25,8 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.List;
-import net.sf.ehcache.distribution.RmiEventMessage.RmiEventType;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,11 +41,11 @@ import org.slf4j.LoggerFactory;
  */
 public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remote {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RMICachePeer.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(RMICachePeer.class);
 
     private final String hostname;
     private final Integer rmiRegistryPort;
-    private Integer remoteObjectPort;
+    private final Integer remoteObjectPort;
     private final Ehcache cache;
 
     /**
@@ -63,7 +64,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
     public RMICachePeer(Ehcache cache, String hostName, Integer rmiRegistryPort, Integer remoteObjectPort,
                         Integer socketTimeoutMillis)
             throws RemoteException {
-        super(remoteObjectPort.intValue(), new ConfigurableRMIClientSocketFactory(socketTimeoutMillis),
+        super(remoteObjectPort, new ConfigurableRMIClientSocketFactory(socketTimeoutMillis),
                 ConfigurableRMIClientSocketFactory.getConfiguredRMISocketFactory());
 
         this.remoteObjectPort = remoteObjectPort;
@@ -79,15 +80,10 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      *
      * @return the URL, without the scheme, as a string e.g. //hostname:port/cacheName
      */
-    public final String getUrl() {
-        return new StringBuilder()
-                .append("//")
-                .append(hostname.contains(":") ? ("[" + hostname + "]") : hostname)
-                .append(":")
-                .append(rmiRegistryPort)
-                .append("/")
-                .append(cache.getName())
-                .toString();
+    @Override
+    public String getUrl() {
+
+        return getUrlBase() + "/" + cache.getName();
     }
 
     /**
@@ -97,13 +93,10 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      *
      * @return the URL, without the scheme, as a string e.g. //hostname:port
      */
-    public final String getUrlBase() {
-        return new StringBuilder()
-                .append("//")
-                .append(hostname.contains(":") ? ("[" + hostname + "]") : hostname)
-                .append(":")
-                .append(rmiRegistryPort)
-                .toString();
+    @Override
+    public String getUrlBase() {
+
+        return "//" + (hostname.contains(":") ? ("[" + hostname + "]") : hostname) + ":" + rmiRegistryPort;
     }
 
     /**
@@ -118,12 +111,15 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      *
      * @return a list of {@link Object} keys
      */
-    public List getKeys() throws RemoteException {
-        List keys = cache.getKeys();
-        if (keys instanceof Serializable) {
-            return keys;
-        }
-        return new ArrayList(keys);
+    @SuppressWarnings("unchecked")
+    @Override
+    public List<Serializable> getKeys() throws RemoteException {
+
+        return ((List<Object>) cache.getKeys())
+                .stream()
+                .map(key -> (Serializable) key)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -133,6 +129,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @param key a serializable value
      * @return the element, or null, if it does not exist.
      */
+    @Override
     public Element getQuiet(Serializable key) throws RemoteException {
         return cache.getQuiet(key);
     }
@@ -144,25 +141,23 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * Cache statistics are still updated.
      * <p>
      * Callers should ideally first call this method with a small list of keys to gauge the size of a typical Element.
-     * Then a calculation can be made of the right number to request each time so as to optimise network performance and
+     * Then a calculation can be made of the right number to request each time to optimise network performance and
      * not cause an OutOfMemory error on this Cache.
      *
      * @param keys a list of serializable values which represent keys
      * @return a list of Elements. If an element was not found or null, it will not be in the list.
      */
-    public List getElements(List keys) throws RemoteException {
+    @Override
+    public List<Element> getElements(List<Serializable> keys) throws RemoteException {
         if (keys == null) {
-            return new ArrayList();
+
+            return new ArrayList<>();
         }
-        List elements = new ArrayList();
-        for (int i = 0; i < keys.size(); i++) {
-            Serializable key = (Serializable) keys.get(i);
-            Element element = cache.getQuiet(key);
-            if (element != null) {
-                elements.add(element);
-            }
-        }
-        return elements;
+
+        return keys.stream()
+                .map(cache::getQuiet)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
 
@@ -174,6 +169,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @throws IllegalArgumentException
      * @throws IllegalStateException
      */
+    @Override
     public void put(Element element) throws RemoteException, IllegalArgumentException, IllegalStateException {
         cache.put(element, true);
         if (LOG.isDebugEnabled()) {
@@ -190,6 +186,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @throws RemoteException
      * @throws IllegalStateException
      */
+    @Override
     public boolean remove(Serializable key) throws RemoteException, IllegalStateException {
         if (LOG.isDebugEnabled()) {
             LOG.debug("RMICachePeer for cache " + cache.getName() + ": remote remove received for key: " + key);
@@ -202,6 +199,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      *
      * @throws IllegalStateException if the cache is not {@link net.sf.ehcache.Status#STATUS_ALIVE}
      */
+    @Override
     public void removeAll() throws RemoteException, IllegalStateException {
         if (LOG.isDebugEnabled()) {
             LOG.debug("RMICachePeer for cache " + cache.getName() + ": remote removeAll received");
@@ -214,17 +212,22 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * <p>
      * This enables multiple messages to be delivered in one network invocation.
      */
-    public void send(List eventMessages) throws RemoteException {
-        for (int i = 0; i < eventMessages.size(); i++) {
-            RmiEventMessage eventMessage = (RmiEventMessage) eventMessages.get(i);
-            if (eventMessage.getType() == RmiEventType.PUT) {
-                put(eventMessage.getElement());
-            } else if (eventMessage.getType() == RmiEventType.REMOVE) {
-                remove(eventMessage.getSerializableKey());
-            } else if (eventMessage.getType() == RmiEventType.REMOVE_ALL) {
-                removeAll();
-            } else {
-                LOG.error("Unknown event: " + eventMessage);
+    @Override
+    public void send(List<RmiEventMessage> eventMessages) throws RemoteException {
+        for (RmiEventMessage message : eventMessages) {
+            switch (message.getType()) {
+                case PUT:
+                    put(message.getElement());
+                    break;
+                case REMOVE:
+                    remove(message.getSerializableKey());
+                    break;
+                case REMOVE_ALL:
+                    removeAll();
+                    break;
+                default:
+                    LOG.error("Unknown event type: " + message.getType());
+                    break;
             }
         }
     }
@@ -232,34 +235,21 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
     /**
      * Gets the cache name
      */
-    public final String getName() throws RemoteException {
+    @Override
+    public String getName() throws RemoteException {
         return cache.getName();
     }
-
 
     /**
      * {@inheritDoc}
      */
-    public final String getGuid() throws RemoteException {
+    @Override
+    public String getGuid() throws RemoteException {
         return cache.getGuid();
     }
 
-    /**
-     * Gets the cache instance that this listener is bound to
-     */
-    final Ehcache getBoundCacheInstance() {
-        return cache;
-    }
-
-    /**
-     * Returns a String that represents the value of this object.
-     */
+    @Override
     public String toString() {
-        StringBuilder buffer = new StringBuilder("URL: ");
-        buffer.append(getUrl());
-        buffer.append(" Remote Object Port: ");
-        buffer.append(remoteObjectPort);
-        return buffer.toString();
+        return "URL: " + getUrl() + " Remote Object Port: " + remoteObjectPort;
     }
-
 }

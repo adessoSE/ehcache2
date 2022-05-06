@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -27,6 +27,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -79,7 +80,7 @@ final class PayloadUtil {
      * @return List of compressed entries containing the peers urlList
      */
     public static List<byte[]> createCompressedPayloadList(final List<CachePeer> localCachePeers, final int maximumPeersPerSend) {
-        List<byte[]> rv = new ArrayList<byte[]>();
+        List<byte[]> rv = new ArrayList<>();
         int iters = (int) Math.ceil((double) localCachePeers.size() / maximumPeersPerSend);
         for (int i = 0; i < iters; i++) {
             int fromIndex = maximumPeersPerSend * i;
@@ -99,7 +100,7 @@ final class PayloadUtil {
      * @return A list of compressed urlList's, each compressed entry not exceeding maxSizePerPayload
      */
     private static List<byte[]> createCompressedPayload(final List<CachePeer> list, final int maxSizePerPayload) {
-        List<byte[]> rv = new ArrayList<byte[]>();
+        List<byte[]> rv = new ArrayList<>();
         byte[] compressed = gzip(assembleUrlList(list));
         if (compressed.length <= maxSizePerPayload) {
             // valid compression
@@ -130,7 +131,6 @@ final class PayloadUtil {
     /**
      * Assembles a list of URLs
      *
-     * @param localCachePeers
      * @return an uncompressed payload with catenated rmiUrls.
      */
     public static byte[] assembleUrlList(List localCachePeers) {
@@ -150,7 +150,7 @@ final class PayloadUtil {
             }
         }
 
-            LOG.debug("Cache peers for this CacheManager to be advertised: {}", sb);
+        LOG.debug("Cache peers for this CacheManager to be advertised: {}", sb);
         return sb.toString().getBytes();
     }
 
@@ -180,13 +180,10 @@ final class PayloadUtil {
      * It does not use a fixed size buffer and is therefore suitable for arbitrary
      * length arrays.
      *
-     * @param gzipped
      * @return a plain, uncompressed byte[]
      */
-    public static byte[] ungzip(final byte[] gzipped) {
-        byte[] ungzipped = new byte[0];
-        try {
-            final GZIPInputStream inputStream = new GZIPInputStream(new ByteArrayInputStream(gzipped));
+    public static byte[] ungzip(final byte[] gzipped) throws IOException {
+        try (final GZIPInputStream inputStream = new GZIPInputStream(new ByteArrayInputStream(gzipped))) {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(gzipped.length);
             final byte[] buffer = new byte[PayloadUtil.MTU];
             int bytesRead = 0;
@@ -196,13 +193,8 @@ final class PayloadUtil {
                     byteArrayOutputStream.write(buffer, 0, bytesRead);
                 }
             }
-            ungzipped = byteArrayOutputStream.toByteArray();
-            inputStream.close();
-            byteArrayOutputStream.close();
-        } catch (IOException e) {
-            LOG.error("Could not ungzip. Heartbeat will not be working. " + e.getMessage());
+            return byteArrayOutputStream.toByteArray();
         }
-        return ungzipped;
     }
 
 }

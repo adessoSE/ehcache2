@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -31,6 +31,7 @@ import java.util.Properties;
  */
 public class RMIBootstrapCacheLoaderFactory extends BootstrapCacheLoaderFactory<RMIBootstrapCacheLoader> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(RMIBootstrapCacheLoaderFactory.class);
 
     /**
      * The property name expected in ehcache.xml for the maximum chunk size in bytes
@@ -40,20 +41,17 @@ public class RMIBootstrapCacheLoaderFactory extends BootstrapCacheLoaderFactory<
     /**
      * The default maximum serialized size of the elements to request from a remote cache peer during bootstrap.
      */
-    protected static final int DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES = 5000000;
+    private static final int DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES = 5_000_000;
 
     /**
      * The highest reasonable chunk size in bytes
      */
-    protected static final int ONE_HUNDRED_MB = 100000000;
+    private static final int ONE_HUNDRED_MB = 100_000_000;
 
     /**
      * The lowest reasonable chunk size in bytes
      */
-    protected static final int FIVE_KB = 5000;
-
-    private static final Logger LOG = LoggerFactory.getLogger(RMIBootstrapCacheLoaderFactory.class.getName());
-
+    private static final int FIVE_KB = 5_000;
 
     /**
      * Create a <code>BootstrapCacheLoader</code>
@@ -80,21 +78,21 @@ public class RMIBootstrapCacheLoaderFactory extends BootstrapCacheLoaderFactory<
             try {
                 int maximumChunkSizeBytesCandidate = Integer.parseInt(maximumChunkSizeBytesString);
                 if ((maximumChunkSizeBytesCandidate < FIVE_KB) || (maximumChunkSizeBytesCandidate > ONE_HUNDRED_MB)) {
-                    LOG.warn("Trying to set the chunk size to an unreasonable number. Using the default instead.");
+                    LOG.warn("Trying to set the chunk size to an unreasonable number. Using the default ({}) instead.", DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES);
                     maximumChunkSizeBytes = DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES;
                 } else {
                     maximumChunkSizeBytes = maximumChunkSizeBytesCandidate;
                 }
             } catch (NumberFormatException e) {
-                LOG.warn("Number format exception trying to set chunk size. Using the default instead.");
+                LOG.warn("Number format exception trying to set chunk size. Using the default ({}) instead.", DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES);
                 maximumChunkSizeBytes = DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES;
             }
 
         } else {
             maximumChunkSizeBytes = DEFAULT_MAXIMUM_CHUNK_SIZE_BYTES;
         }
+
+        LOG.debug("MaximumChunkSizeBytes = {}", maximumChunkSizeBytes);
         return maximumChunkSizeBytes;
     }
-
-
 }

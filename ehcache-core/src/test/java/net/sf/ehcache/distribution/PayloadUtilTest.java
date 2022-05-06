@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.ref.Reference;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
@@ -103,7 +104,7 @@ public class PayloadUtilTest extends AbstractRMITest {
     }
 
     @Test
-    public void testBigPayload() throws RemoteException {
+    public void testBigPayload() throws RemoteException, IOException {
         List<CachePeer> bigPayloadList = new ArrayList<CachePeer>();
         // create 5000 peers, each peer having cache name between 50 - 500 char length
         int peers = 5000;
@@ -133,7 +134,7 @@ public class PayloadUtilTest extends AbstractRMITest {
 
     }
 
-    private void doTestBigPayLoad(List<CachePeer> bigPayloadList, int maximumPeersPerSend) throws RemoteException {
+    private void doTestBigPayLoad(List<CachePeer> bigPayloadList, int maximumPeersPerSend) throws RemoteException, IOException {
         List<byte[]> compressedList = PayloadUtil.createCompressedPayloadList(bigPayloadList, maximumPeersPerSend);
         // the big list cannot be compressed in 1 entry
         assertTrue(compressedList.size() > 1);
@@ -289,7 +290,7 @@ public class PayloadUtilTest extends AbstractRMITest {
          *
          * @see net.sf.ehcache.distribution.CachePeer#send(java.util.List)
          */
-        public void send(List eventMessages) throws RemoteException {
+        public void send(List<RmiEventMessage> eventMessages) throws RemoteException {
             // no-op
 
         }
