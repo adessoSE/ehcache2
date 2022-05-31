@@ -243,6 +243,10 @@ public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerPro
                 return PeerState.HEALTHY;
             }
 
+            if (lookupRemoteCachePeer(rmiUrl) == null) {
+                return PeerState.STALE;
+            }
+
             return staleSince.before(getExpireDate()) ? PeerState.STALE : PeerState.UNHEALTHY;
         }
 
