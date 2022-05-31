@@ -127,6 +127,10 @@ public abstract class RMICacheManagerPeerProvider implements CacheManagerPeerPro
         //nothing to do.
     }
 
+    public CacheManagerPeerListener getCachePeerListener() {
+        return cacheManager.getCachePeerListener(getScheme());
+    }
+
     /**
      * The cacheManager this provider is bound to
      */
