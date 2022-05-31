@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -42,7 +42,7 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
      * The default timeout for cache replication for a single replication action.
      * This may need to be increased for large data transfers.
      */
-    public static final Integer DEFAULT_SOCKET_TIMEOUT_MILLIS = Integer.valueOf(120000);
+    public static final Integer DEFAULT_SOCKET_TIMEOUT_MILLIS = 120000;
 
     private static final String HOSTNAME = "hostName";
     private static final String PORT = "port";
@@ -62,7 +62,7 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
         if (portString != null && portString.length() != 0) {
             port = Integer.valueOf(portString);
         } else {
-            port = Integer.valueOf(0);
+            port = 0;
         }
 
         //0 means any port in UnicastRemoteObject, so it is ok if not specified to make it 0
@@ -71,15 +71,15 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
         if (remoteObjectPortString != null && remoteObjectPortString.length() != 0) {
             remoteObjectPort = Integer.valueOf(remoteObjectPortString);
         } else {
-            remoteObjectPort = Integer.valueOf(0);
+            remoteObjectPort = 0;
         }
 
         String socketTimeoutMillisString = PropertyUtil.extractAndLogProperty(SOCKET_TIMEOUT_MILLIS, properties);
-        Integer socketTimeoutMillis;
+        int socketTimeoutMillis;
         if (socketTimeoutMillisString == null || socketTimeoutMillisString.length() == 0) {
             socketTimeoutMillis = DEFAULT_SOCKET_TIMEOUT_MILLIS;
         } else {
-            socketTimeoutMillis = Integer.valueOf(socketTimeoutMillisString);
+            socketTimeoutMillis = Integer.parseInt(socketTimeoutMillisString);
         }
         return doCreateCachePeerListener(hostName, port, remoteObjectPort, cacheManager, socketTimeoutMillis);
     }
@@ -93,15 +93,17 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
      * @param cacheManager
      * @param socketTimeoutMillis @return a crate CacheManagerPeerListener
      */
-    protected CacheManagerPeerListener doCreateCachePeerListener(String hostName,
-                                                                 Integer port,
-                                                                 Integer remoteObjectPort,
-                                                                 CacheManager cacheManager,
-                                                                 Integer socketTimeoutMillis) {
+    protected CacheManagerPeerListener doCreateCachePeerListener(
+            String hostName,
+            Integer port,
+            Integer remoteObjectPort,
+            CacheManager cacheManager,
+            Integer socketTimeoutMillis
+    ) {
         try {
             return new RMICacheManagerPeerListener(hostName, port, remoteObjectPort, cacheManager, socketTimeoutMillis);
         } catch (UnknownHostException e) {
-            throw new CacheException("Unable to create CacheManagerPeerListener. Initial cause was " + e.getMessage(), e);
+            throw new CacheException("Unable to create CacheManagerPeerListener.", e);
         }
     }
 }

@@ -122,6 +122,8 @@ public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerPro
         return new TreeSet<>(activePeerUrls.keySet());
     }
 
+
+    @SuppressWarnings("BusyWait")
     void rmiUrlsStateChecker() {
         while (true) {
             try {

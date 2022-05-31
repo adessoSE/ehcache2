@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * An interface for a cache peer to which updates are made remotely. The distribution mechanism
@@ -130,9 +131,9 @@ public interface CachePeer extends Remote {
      * still updated.
      *
      * @param key a serializable value
-     * @return the element, or null, if it does not exist.
+     * @return an Optional element.
      */
-    Element getQuiet(Serializable key) throws RemoteException;
+    Optional<Element> getQuiet(Serializable key) throws RemoteException;
 
     /**
      * Gets a list of elements from the cache, for a list of keys, without updating Element statistics. Time to
@@ -140,7 +141,7 @@ public interface CachePeer extends Remote {
      * <p>
      * Cache statistics are still updated.
      *
-     * @param keys a list of serializable values which represent keys
+     * @param keys a list of serializable values which represents the keys.
      * @return a list of Elements. If an element was not found or null, it will not be in the list.
      */
     List<Element> getElements(List<Serializable> keys) throws RemoteException;

@@ -73,10 +73,8 @@ final class PayloadUtil {
      * Creates a list of compressed (using gzip) url list. Breaks up the list of urlList such that size of each compressed entry in the list
      * does not exceed the {@link #MTU} and the number of url's in each compressed entry does not exceed the maximumPeersPerSend parameter
      *
-     * @param localCachePeers
-     *            List containing the peers
-     * @param maximumPeersPerSend
-     *            The maximum number of peers that can be present in one compressed entry
+     * @param localCachePeers     List containing the peers
+     * @param maximumPeersPerSend The maximum number of peers that can be present in one compressed entry
      * @return List of compressed entries containing the peers urlList
      */
     public static List<byte[]> createCompressedPayloadList(final List<CachePeer> localCachePeers, final int maximumPeersPerSend) {
@@ -95,7 +93,7 @@ final class PayloadUtil {
      * Generates a list of compressed urlList's for the input CachePeers list. Each compressed payload is limited by size by the
      * maxSizePerPayload parameter and will break up into multiple payloads if necessary to limit the payload size
      *
-     * @param list The list of CachePeers whose payload needs to be generated
+     * @param list              The list of CachePeers whose payload needs to be generated
      * @param maxSizePerPayload The maximum size each payload can have
      * @return A list of compressed urlList's, each compressed entry not exceeding maxSizePerPayload
      */
@@ -133,20 +131,16 @@ final class PayloadUtil {
      *
      * @return an uncompressed payload with catenated rmiUrls.
      */
-    public static byte[] assembleUrlList(List localCachePeers) {
+    public static byte[] assembleUrlList(List<CachePeer> localCachePeers) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < localCachePeers.size(); i++) {
-            CachePeer cachePeer = (CachePeer) localCachePeers.get(i);
-            String rmiUrl = null;
+        for (CachePeer cachePeer : localCachePeers) {
             try {
-                rmiUrl = cachePeer.getUrl();
+                if (sb.length() > 0) {
+                    sb.append(URL_DELIMITER);
+                }
+                sb.append(cachePeer.getUrl());
             } catch (RemoteException e) {
                 LOG.error("This should never be thrown as it is called locally");
-            }
-            if (i != localCachePeers.size() - 1) {
-                sb.append(rmiUrl).append(URL_DELIMITER);
-            } else {
-                sb.append(rmiUrl);
             }
         }
 
@@ -157,8 +151,7 @@ final class PayloadUtil {
     /**
      * Gzips a byte[]. For text, approximately 10:1 compression is achieved.
      *
-     * @param ungzipped
-     *            the bytes to be gzipped
+     * @param ungzipped the bytes to be gzipped
      * @return gzipped bytes
      */
     public static byte[] gzip(byte[] ungzipped) {

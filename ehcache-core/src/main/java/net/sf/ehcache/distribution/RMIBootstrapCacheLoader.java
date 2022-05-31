@@ -104,7 +104,7 @@ public class RMIBootstrapCacheLoader implements BootstrapCacheLoader, Cloneable 
      *
      * @throws RemoteCacheException if anything goes wrong with the remote call
      */
-    public void doLoad(Ehcache cache) {
+    public void doLoad(Ehcache cache) throws RemoteCacheException {
 
         Optional<CachePeer> cachePeerOptional = getRandomCachePeer(cache);
         if (!cachePeerOptional.isPresent()) {
@@ -158,9 +158,9 @@ public class RMIBootstrapCacheLoader implements BootstrapCacheLoader, Cloneable 
 
     Optional<Element> getSampleElement(CachePeer cachePeer, List<Serializable> keys) throws RemoteException {
         for (Serializable key : keys) {
-            Element element = cachePeer.getQuiet(key);
-            if (element != null && element.getSerializedSize() != 0) {
-                return Optional.of(element);
+            Optional<Element> element = cachePeer.getQuiet(key);
+            if (element.isPresent() && element.get().getSerializedSize() != 0) {
+                return element;
             }
         }
 

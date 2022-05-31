@@ -1,32 +1,20 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.management.sampled;
-
-import java.lang.management.ManagementFactory;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.MBeanRegistrationException;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.NotCompliantMBeanException;
-import javax.management.ObjectName;
 
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
@@ -37,9 +25,19 @@ import net.sf.ehcache.hibernate.management.impl.BaseEmitterBean;
 import net.sf.ehcache.management.provider.MBeanRegistrationProvider;
 import net.sf.ehcache.management.provider.MBeanRegistrationProviderException;
 import net.sf.ehcache.terracotta.ClusteredInstanceFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.management.InstanceAlreadyExistsException;
+import javax.management.MBeanRegistrationException;
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.NotCompliantMBeanException;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An implementation of {@link MBeanRegistrationProvider} which registers
@@ -62,7 +60,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
     private CacheManager cacheManager;
     private String clientUUID;
     private final MBeanServer mBeanServer;
-    private final Map<ObjectName, Object> mbeans = new ConcurrentHashMap<ObjectName, Object>();
+    private final Map<ObjectName, Object> mbeans = new ConcurrentHashMap<>();
 
     // name of the cacheManager when the mbeans are registered.
     // On cacheManager.dispose(), need to remove
@@ -71,7 +69,6 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
     // construction
     // by doing setName()
     private volatile String registeredCacheManagerName;
-    private SampledCacheManager cacheManagerMBean;
 
     /**
      * Default constructor
@@ -91,7 +88,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
         this.cacheManager = cacheManagerParam;
         this.clientUUID = clusteredInstanceFactory == null ? "" : clusteredInstanceFactory.getUUID();
         try {
-            cacheManagerMBean = new SampledCacheManager(cacheManager);
+            SampledCacheManager cacheManagerMBean = new SampledCacheManager(cacheManager);
             registerCacheManagerMBean(cacheManagerMBean);
         } catch (Exception e) {
             status = Status.STATUS_UNINITIALISED;
@@ -105,7 +102,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
 
     private void registerCacheManagerMBean(SampledCacheManager cacheManagerMBean) throws Exception {
         int tries = 0;
-        boolean success = false;
+        boolean success;
         Exception exception = null;
         do {
             this.registeredCacheManagerName = cacheManager.getName();
@@ -182,15 +179,15 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
     }
 
     private void registerStoreMBean(Ehcache cache) throws InstanceAlreadyExistsException, MBeanRegistrationException,
-        NotCompliantMBeanException {
+            NotCompliantMBeanException {
         // enable sampled stats
         Object bean;
         if (cache instanceof net.sf.ehcache.Cache) {
-            bean = ((net.sf.ehcache.Cache)cache).getStoreMBean();
+            bean = ((net.sf.ehcache.Cache) cache).getStoreMBean();
             if (bean != null) {
                 try {
                     ObjectName storeObjectName = SampledEhcacheMBeans.getStoreObjectName(clientUUID, registeredCacheManagerName,
-                        cache.getName());
+                            cache.getName());
                     mBeanServer.registerMBean(bean, storeObjectName);
                     mbeans.put(storeObjectName, bean);
                 } catch (MalformedObjectNameException e) {
@@ -212,8 +209,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
     /**
      * Stop the listener and free any resources. Removes registered ObjectNames
      *
-     * @throws net.sf.ehcache.CacheException
-     *             - all exceptions are wrapped in CacheException
+     * @throws net.sf.ehcache.CacheException - all exceptions are wrapped in CacheException
      */
     public synchronized void dispose() throws CacheException {
         if (!isAlive()) {
@@ -228,7 +224,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
                 }
                 Object o = mbeans.get(objectName);
                 if (o instanceof BaseEmitterBean) {
-                    BaseEmitterBean mbean = (BaseEmitterBean)o;
+                    BaseEmitterBean mbean = (BaseEmitterBean) o;
                     mbean.dispose();
                 }
             } catch (Exception e) {
@@ -237,7 +233,9 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
         }
         mbeans.clear();
 
-        cacheManager.getCacheManagerEventListenerRegistry().unregisterListener(this);
+        if (!cacheManager.getCacheManagerEventListenerRegistry().unregisterListener(this)) {
+            LOG.warn("could not unregisterListener {}", this);
+        }
 
         status = Status.STATUS_SHUTDOWN;
     }
@@ -272,8 +270,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
      * calling method will block until this method
      * returns.
      *
-     * @param cacheName
-     *            the name of the <code>Cache</code> the operation relates to
+     * @param cacheName the name of the <code>Cache</code> the operation relates to
      */
     public void notifyCacheRemoved(String cacheName) {
         if (!isAlive()) {
@@ -290,7 +287,7 @@ public class SampledMBeanRegistrationProvider implements MBeanRegistrationProvid
         }
         try {
             ObjectName storeObjectName = SampledEhcacheMBeans.getStoreObjectName(clientUUID, registeredCacheManagerName,
-                cacheName);
+                    cacheName);
             if (mBeanServer.isRegistered(storeObjectName)) {
                 mBeanServer.unregisterMBean(storeObjectName);
             }
