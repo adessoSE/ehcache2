@@ -59,7 +59,7 @@ import static java.lang.Thread.sleep;
  * @author Greg Luck
  * @version $Id$
  */
-public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerProvider implements CacheManagerPeerProvider {
+public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerProvider {
 
     private static final String STATE_CHECKER_THREAD_NAME = "State Checker Thread";
     private static final Logger LOG = LoggerFactory.getLogger(MulticastRMICacheManagerPeerProvider.class);
@@ -122,6 +122,8 @@ public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerPro
         return new TreeSet<>(activePeerUrls.keySet());
     }
 
+
+    @SuppressWarnings("BusyWait")
     void rmiUrlsStateChecker() {
         while (true) {
             try {
@@ -140,6 +142,7 @@ public class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerPro
             Entry<String, CachePeerState> entry = iterator.next();
 
             PeerState peerState = entry.getValue().peerState();
+            LOG.trace("peer entry {} is {}", entry.getKey(), peerState);
             if (peerState == PeerState.STALE) {
                 LOG.warn("peer entry {} is {} and will be removed from peer list", entry.getKey(), peerState);
                 iterator.remove();

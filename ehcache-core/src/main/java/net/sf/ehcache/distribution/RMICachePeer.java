@@ -58,11 +58,8 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @param remoteObjectPort    the port number on which the remote objects bound in the registry receive calls.
      *                            This defaults to a free port if not specified.
      *                            Should be an unused port in the range 1025 - 65536
-     * @param socketTimeoutMillis
-     * @throws RemoteException
      */
-    public RMICachePeer(Ehcache cache, String hostName, Integer rmiRegistryPort, Integer remoteObjectPort,
-                        Integer socketTimeoutMillis)
+    public RMICachePeer(Ehcache cache, String hostName, Integer rmiRegistryPort, Integer remoteObjectPort, Integer socketTimeoutMillis)
             throws RemoteException {
         super(remoteObjectPort, new ConfigurableRMIClientSocketFactory(socketTimeoutMillis),
                 ConfigurableRMIClientSocketFactory.getConfiguredRMISocketFactory());
@@ -102,7 +99,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
     /**
      * Returns a list of all elements in the cache, whether or not they are expired.
      * <p>
-     * The returned keys are unique and can be considered a set.
+     * The returned keys are unique and can be considered as a set.
      * <p>
      * The List returned is not live. It is a copy.
      * <p>
@@ -127,10 +124,11 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * still updated.
      *
      * @param key a serializable value
-     * @return the element, or null, if it does not exist.
+     * @return the element, or Optional.empty(), if it does not exist.
      */
     @Override
     public Element getQuiet(Serializable key) throws RemoteException {
+
         return cache.getQuiet(key);
     }
 
@@ -163,11 +161,6 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
 
     /**
      * Puts an Element into the underlying cache without notifying listeners or updating statistics.
-     *
-     * @param element
-     * @throws java.rmi.RemoteException
-     * @throws IllegalArgumentException
-     * @throws IllegalStateException
      */
     @Override
     public void put(Element element) throws RemoteException, IllegalArgumentException, IllegalStateException {
@@ -181,10 +174,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
     /**
      * Removes an Element from the underlying cache without notifying listeners or updating statistics.
      *
-     * @param key
      * @return true if the element was removed, false if it was not found in the cache
-     * @throws RemoteException
-     * @throws IllegalStateException
      */
     @Override
     public boolean remove(Serializable key) throws RemoteException, IllegalStateException {
@@ -240,9 +230,6 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
         return cache.getName();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getGuid() throws RemoteException {
         return cache.getGuid();

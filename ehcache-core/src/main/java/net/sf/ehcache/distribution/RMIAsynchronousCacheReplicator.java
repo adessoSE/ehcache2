@@ -205,6 +205,7 @@ public class RMIAsynchronousCacheReplicator extends AbstractRMICacheReplicator {
         return list;
     }
 
+    @SuppressWarnings("BusyWait")
     void replicate() {
         while (true) {
             // Wait for elements in the replicationQueue

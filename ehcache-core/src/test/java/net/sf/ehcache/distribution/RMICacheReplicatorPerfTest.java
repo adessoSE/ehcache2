@@ -1,22 +1,5 @@
 package net.sf.ehcache.distribution;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.io.Serializable;
-import java.rmi.RemoteException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-
 import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
@@ -24,12 +7,10 @@ import net.sf.ehcache.CacheManager;
 import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.StopWatch;
-import net.sf.ehcache.config.CacheConfiguration;
 import net.sf.ehcache.config.Configuration;
 import net.sf.ehcache.config.ConfigurationFactory;
 import net.sf.ehcache.management.ManagementService;
 import net.sf.ehcache.util.RetryAssert;
-
 import org.hamcrest.collection.IsEmptyCollection;
 import org.hamcrest.core.Is;
 import org.junit.After;
@@ -38,32 +19,44 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static net.sf.ehcache.distribution.AbstractRMITest.getActiveReplicationThreads;
-import static org.junit.Assert.assertThat;
+import java.io.Serializable;
+import java.rmi.RemoteException;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+
+import static java.lang.Thread.sleep;
+import static java.util.Arrays.stream;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * @author Alex Snaps
  */
 public class RMICacheReplicatorPerfTest extends AbstractRMITest {
 
-
-    private static final Logger LOG = LoggerFactory.getLogger(RMICacheReplicatorPerfTest.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(RMICacheReplicatorPerfTest.class);
 
     private static final String ASYNCHRONOUS_CACHE = "asynchronousCache";
     private static final String SYNCHRONOUS_CACHE = "synchronousCache";
+    private static final String VALUE = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
-    private static List<CacheManager> createCluster(int size, String ... caches){
+    private static List<CacheManager> createCluster(int size, String... caches) {
         LOG.info("Creating Cluster");
         Collection<String> required = Arrays.asList(caches);
-        List<Configuration> configurations = new ArrayList<Configuration>(size);
+        List<Configuration> configurations = new ArrayList<>(size);
         for (int i = 1; i <= size; i++) {
             Configuration config = ConfigurationFactory.parseConfiguration(RMICacheReplicatorPerfTest.class.getResource("/ehcache-perf-distributed.xml")).name("cm" + i);
             if (!required.isEmpty()) {
-                for (Iterator<Map.Entry<String, CacheConfiguration>> it = config.getCacheConfigurations().entrySet().iterator(); it.hasNext(); ) {
-                    if (!required.contains(it.next().getKey())) {
-                        it.remove();
-                    }
-                }
+                config.getCacheConfigurations().entrySet().removeIf(stringCacheConfigurationEntry -> !required.contains(stringCacheConfigurationEntry.getKey()));
             }
             configurations.add(config);
         }
@@ -71,61 +64,38 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
 
         List<CacheManager> members = startupManagers(configurations);
         try {
-          LOG.info("Created Managers");
-          if (required.isEmpty()) {
-              waitForClusterMembership(120, TimeUnit.SECONDS, members);
-              LOG.info("Cluster Membership Complete");
-              emptyCaches(120, TimeUnit.SECONDS, members);
-              LOG.info("Caches Emptied");
-          } else {
-              waitForClusterMembership(120, TimeUnit.SECONDS, required, members);
-              LOG.info("Cluster Membership Complete");
-              emptyCaches(120, TimeUnit.SECONDS, required, members);
-              LOG.info("Caches Emptied");
-          }
-          return members;
-        } catch (RuntimeException e) {
-          destroyCluster(members);
-          throw e;
-        } catch (Error e) {
-          destroyCluster(members);
-          throw e;
+            LOG.info("Created Managers");
+            if (required.isEmpty()) {
+                waitForClusterMembership(120, TimeUnit.SECONDS, members);
+                LOG.info("Cluster Membership Complete");
+                emptyCaches(120, TimeUnit.SECONDS, members);
+                LOG.info("Caches Emptied");
+            } else {
+                waitForClusterMembership(120, TimeUnit.SECONDS, required, members);
+                LOG.info("Cluster Membership Complete");
+                emptyCaches(120, TimeUnit.SECONDS, required, members);
+                LOG.info("Caches Emptied");
+            }
+            return members;
+        } finally {
+            destroyCluster(members);
         }
     }
 
     private static void destroyCluster(List<CacheManager> members) {
-        for (CacheManager manager : members) {
-            if (manager != null) {
-                manager.shutdown();
-            }
-        }
+        members.forEach(CacheManager::shutdown);
     }
 
-    /**
-     * {@inheritDoc}
-     * Sets up two caches: cache1 is local. cache2 is to be receive updates
-     *
-     * @throws Exception
-     */
     @Before
     public void setUp() throws Exception {
         MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
-        assertThat(getActiveReplicationThreads(), IsEmptyCollection.<Thread>empty());
+
+        assertThat(getActiveReplicationThreads()).isEmpty();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @throws Exception
-     */
     @After
-    public void noReplicationThreads() throws Exception {
-        RetryAssert.assertBy(30, TimeUnit.SECONDS, new Callable<Set<Thread>>() {
-            @Override
-            public Set<Thread> call() throws Exception {
-                return getActiveReplicationThreads();
-            }
-        }, IsEmptyCollection.<Thread>empty());
+    public void noReplicationThreads() {
+        RetryAssert.assertBy(30, TimeUnit.SECONDS, AbstractRMITest::getActiveReplicationThreads, IsEmptyCollection.empty());
     }
 
     /**
@@ -151,32 +121,20 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
      * 2 seconds to get 2000 notifications with 6 peers, Elements with 400 byte payload (5 second heartbeat)
      */
     @Test
-    public void testBigPutsProgagatesAsynchronous() throws CacheException, InterruptedException {
+    public void testBigPutsProgagatesAsynchronous() throws CacheException {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {
-            final Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
+            final Ehcache cache = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
 
             StopWatch stopWatch = new StopWatch();
-            Integer index = null;
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    index = Integer.valueOf(((1000 * i) + j));
-                    cache1.put(new Element(index,
-                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                }
-
-            }
+            setUpCache(2, cache);
             long elapsed = stopWatch.getElapsedTime();
             long putTime = ((elapsed / 1000));
             LOG.info("Put Elapsed time: " + putTime);
             //assertTrue(putTime < 8);
 
             for (CacheManager manager : cluster) {
-              RetryAssert.assertBy(2, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
+                RetryAssert.assertBy(2, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
             }
         } finally {
             destroyCluster(cluster);
@@ -184,32 +142,15 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
     }
 
 
-    /**
-     * Performance and capacity tests.
-     * <p>
-     */
-
     @Test
-    public void testBootstrap() throws CacheException, InterruptedException, RemoteException {
+    public void testBootstrap() throws CacheException, RemoteException {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {
             final Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
-            
+
             //load up some data
             StopWatch stopWatch = new StopWatch();
-            Integer index = null;
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    index = Integer.valueOf(((1000 * i) + j));
-                    cache1.put(new Element(index,
-                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                }
-
-            }
+            setUpCache(2, cache1);
             long elapsed = stopWatch.getElapsedTime();
             long putTime = ((elapsed / 1000));
             LOG.info("Put Elapsed time: " + putTime);
@@ -217,27 +158,26 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             assertEquals(2000, cache1.getSize());
 
             for (CacheManager manager : cluster) {
-              RetryAssert.assertBy(7, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
+                RetryAssert.assertBy(7, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
             }
 
             //now test bootstrap
             cluster.get(0).addCache("bootStrapResults");
             Cache cache = cluster.get(0).getCache("bootStrapResults");
-            List cachePeers = cluster.get(0).getCacheManagerPeerProvider("RMI").listRemoteCachePeers(cache1);
-            CachePeer cachePeer = (CachePeer) cachePeers.get(0);
+            List<CachePeer> cachePeers = cluster.get(0).getCacheManagerPeerProvider("RMI").listRemoteCachePeers(cache1);
+            CachePeer cachePeer = cachePeers.get(0);
 
-            List keys = cachePeer.getKeys();
+            List<Serializable> keys = cachePeer.getKeys();
             assertEquals(2000, keys.size());
 
-            Element firstElement = cachePeer.getQuiet((Serializable) keys.get(0));
+            Element firstElement = cachePeer.getQuiet(keys.get(0));
             long size = firstElement.getSerializedSize();
             assertEquals(517, size);
 
             int chunkSize = (int) (5000000 / size);
 
-            List requestChunk = new ArrayList();
-            for (int i = 0; i < keys.size(); i++) {
-                Serializable serializable = (Serializable) keys.get(i);
+            List<Serializable> requestChunk = new ArrayList<>();
+            for (Serializable serializable : keys) {
                 requestChunk.add(serializable);
                 if (requestChunk.size() == chunkSize) {
                     fetchAndPutElements(cache, requestChunk, cachePeer);
@@ -253,40 +193,27 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
         }
     }
 
-    private void fetchAndPutElements(Ehcache cache, List requestChunk, CachePeer cachePeer) throws RemoteException {
-        List receivedChunk = cachePeer.getElements(requestChunk);
-        for (int i = 0; i < receivedChunk.size(); i++) {
-            Element element = (Element) receivedChunk.get(i);
+    private void fetchAndPutElements(Ehcache cache, List<Serializable> requestChunk, CachePeer cachePeer) throws RemoteException {
+        List<Element> receivedChunk = cachePeer.getElements(requestChunk);
+        for (Element element : receivedChunk) {
             assertNotNull(element);
             cache.put(element, true);
         }
-
     }
 
 
     /**
      * Drive everything to point of breakage within a 64MB VM.
      */
-    public void xTestHugePutsBreaksAsynchronous() throws CacheException, InterruptedException {
+    @Test
+    public void xTestHugePutsBreaksAsynchronous() throws CacheException {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {
             final Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
-            
+
             //Give everything a chance to startup
             StopWatch stopWatch = new StopWatch();
-            Integer index = null;
-            for (int i = 0; i < 500; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    index = Integer.valueOf(((1000 * i) + j));
-                    cache1.put(new Element(index,
-                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                }
-
-            }
+            setUpCache(500, cache1);
             long elapsed = stopWatch.getElapsedTime();
             long putTime = ((elapsed / 1000));
             LOG.info("Put Elapsed time: " + putTime);
@@ -295,10 +222,18 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             assertEquals(100000, cache1.getSize());
 
             for (CacheManager manager : cluster) {
-              RetryAssert.assertBy(100, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(20000));
+                RetryAssert.assertBy(100, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(20000));
             }
         } finally {
             destroyCluster(cluster);
+        }
+    }
+
+    void setUpCache(int times, Ehcache cache) {
+        for (int i = 0; i < times; i++) {
+            for (int j = 0; j < 1000; j++) {
+                cache.put(new Element(1000 * i + j, VALUE));
+            }
         }
     }
 
@@ -316,40 +251,23 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
     public void testBigRemovesProgagatesAsynchronous() throws CacheException, InterruptedException {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {
-            final Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
-            
+            final Ehcache cache = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
+
             //Give everything a chance to startup
-            Integer index = null;
-            for (int i = 0; i < 5; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    index = Integer.valueOf(((1000 * i) + j));
-                    cache1.put(new Element(index,
-                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                }
-
-            }
-
+            setUpCache(5, cache);
 
             Ehcache[] caches = {
-                cache1,
-                cluster.get(1).getCache(ASYNCHRONOUS_CACHE),
-                cluster.get(2).getCache(ASYNCHRONOUS_CACHE),
-                cluster.get(3).getCache(ASYNCHRONOUS_CACHE),
-                cluster.get(4).getCache(ASYNCHRONOUS_CACHE) };
+                    cache,
+                    cluster.get(1).getCache(ASYNCHRONOUS_CACHE),
+                    cluster.get(2).getCache(ASYNCHRONOUS_CACHE),
+                    cluster.get(3).getCache(ASYNCHRONOUS_CACHE),
+                    cluster.get(4).getCache(ASYNCHRONOUS_CACHE)};
 
             waitForCacheSize(5000, 25, caches);
             //Let the disk stores catch up before the next stage of the test
-            Thread.sleep(2000);
+            sleep(2000);
 
-            for (int i = 0; i < 5; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    cache1.remove(Integer.valueOf(((1000 * i) + j)));
-                }
-            }
+            IntStream.range(0, 5000).forEach(cache::remove);
 
             long timeForPropagate = waitForCacheSize(0, 25, caches);
             LOG.info("Remove Elapsed time: " + timeForPropagate);
@@ -358,12 +276,13 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
         }
     }
 
+    @SuppressWarnings("BusyWait")
     public long waitForCacheSize(long size, int maxSeconds, Ehcache... caches) throws InterruptedException {
 
         StopWatch stopWatch = new StopWatch();
-        while(checkForCacheSize(size, caches)) {
-            Thread.sleep(500);
-            if(stopWatch.getElapsedTime() > maxSeconds * 1000) {
+        while (checkForCacheSize(size, caches)) {
+            sleep(500);
+            if (stopWatch.getElapsedTime() > maxSeconds * 1000L) {
                 fail("Caches still haven't reached the expected size after " + maxSeconds + " seconds");
             }
         }
@@ -372,14 +291,7 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
     }
 
     private boolean checkForCacheSize(long size, Ehcache... caches) {
-        boolean sizeReached = true;
-        for (Ehcache cache : caches) {
-            if(cache.getSize() != size) {
-                sizeReached = false;
-                break;
-            }
-        }
-        return sizeReached;
+        return stream(caches).noneMatch(cache -> cache.getSize() != size);
     }
 
 
@@ -392,30 +304,22 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
      * it has fully received.
      */
     @Test
-    public void testBigPutsProgagatesSynchronous() throws CacheException, InterruptedException {
+    public void testBigPutsProgagatesSynchronous() throws CacheException {
         List<CacheManager> cluster = createCluster(5, SYNCHRONOUS_CACHE);
         try {
             //Give everything a chance to startup
             StopWatch stopWatch = new StopWatch();
-            Integer index;
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 1000; j++) {
-                    index = Integer.valueOf(((1000 * i) + j));
-                    cluster.get(0).getCache(SYNCHRONOUS_CACHE).put(new Element(index,
-                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                    + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                }
 
-            }
+            setUpCache(2, cluster.get(0).getCache(SYNCHRONOUS_CACHE));
+
             long elapsed = stopWatch.getElapsedTime();
             long putTime = ((elapsed / 1000));
-            LOG.info("Put and Propagate Synchronously Elapsed time: " + putTime + " seconds");
+            LOG.info("Put and Propagate Synchronously Elapsed time: {} seconds", putTime);
 
             for (CacheManager manager : cluster) {
-                assertThat(manager.getName(), manager.getCache(SYNCHRONOUS_CACHE).getSize(), Is.is(2000));
+                assertThat(manager.getCache(SYNCHRONOUS_CACHE).getSize())
+                        .describedAs(manager.getName())
+                        .isEqualTo(2000);
             }
         } finally {
             destroyCluster(cluster);
@@ -426,10 +330,9 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
      * Enables long stabilty runs using replication to be done.
      * <p>
      * This test has been run in a profile for 15 hours without any observed issues.
-     *
-     * @throws InterruptedException
      */
-    public void manualStabilityTest() throws InterruptedException {
+    @SuppressWarnings("InfiniteLoopStatement")
+    public void manualStabilityTest() {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {
             AbstractCacheTest.forceVMGrowth();
@@ -439,26 +342,15 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
                 final Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
 
                 StopWatch stopWatch = new StopWatch();
-                Integer index = null;
-                for (int i = 0; i < 2; i++) {
-                    for (int j = 0; j < 1000; j++) {
-                        index = Integer.valueOf(((1000 * i) + j));
-                        cache1.put(new Element(index,
-                                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                        + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                        + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                        + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                        + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-                    }
+                setUpCache(2, cache1);
 
-                }
                 long elapsed = stopWatch.getElapsedTime();
                 long putTime = ((elapsed / 1000));
                 LOG.info("Put Elapsed time: " + putTime);
                 //assertTrue(putTime < 8);
 
                 for (CacheManager manager : cluster) {
-                  RetryAssert.assertBy(2, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
+                    RetryAssert.assertBy(2, TimeUnit.SECONDS, RetryAssert.sizeOf(manager.getCache(ASYNCHRONOUS_CACHE)), Is.is(2000));
                 }
             }
         } finally {
@@ -513,7 +405,7 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
      * Also no pauses noted.
      */
     @Test
-    public void testReplicatePerf() throws InterruptedException {
+    public void testReplicatePerf() {
         List<CacheManager> cluster = createCluster(1, ASYNCHRONOUS_CACHE);
         try {
             Ehcache cache1 = cluster.get(0).getEhcache(ASYNCHRONOUS_CACHE);
@@ -521,8 +413,9 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             final String keyBase = Long.toString(start);
             int count = 0;
 
+            Random random = new SecureRandom();
             for (int i = 0; i < 100000; i++) {
-                final String key = keyBase + ':' + Integer.toString((int) (Math.random() * 1000.0));
+                final String key = keyBase + ':' + random.nextInt(1000);
                 cache1.put(new Element(key, "My Test"));
                 cache1.get(key);
                 cache1.remove(key);
@@ -544,9 +437,6 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
 
     /**
      * Non JUnit invocation of stability test to get cleaner run
-     *
-     * @param args
-     * @throws InterruptedException
      */
     public static void main(String[] args) throws Exception {
         RMICacheReplicatorPerfTest replicatorTest = new RMICacheReplicatorPerfTest();
@@ -557,6 +447,4 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             replicatorTest.noReplicationThreads();
         }
     }
-
-
 }

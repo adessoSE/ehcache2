@@ -5,7 +5,7 @@
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,33 +21,25 @@ import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheManager;
 import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.config.CacheConfiguration;
+import net.sf.ehcache.config.Configuration;
 import net.sf.ehcache.util.RetryAssert;
-
 import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.After;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.SocketTimeoutException;
 import java.rmi.RemoteException;
 import java.rmi.UnmarshalException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import net.sf.ehcache.config.CacheConfiguration;
-import net.sf.ehcache.config.Configuration;
-import net.sf.ehcache.distribution.RmiEventMessage.RmiEventType;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static java.lang.Thread.sleep;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Unit tests for RMICachePeer
@@ -63,11 +55,7 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
 
     @After
     public void tearDown() throws InterruptedException {
-        RetryAssert.assertBy(30, TimeUnit.SECONDS, new Callable<Set<Thread>>() {
-            public Set<Thread> call() throws Exception {
-                return getActiveReplicationThreads();
-            }
-        }, IsEmptyCollection.<Thread>empty());
+        RetryAssert.assertBy(30, TimeUnit.SECONDS, AbstractRMITest::getActiveReplicationThreads, IsEmptyCollection.empty());
     }
 
 
@@ -78,7 +66,7 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
     public void testCreatePeerWithAutomaticRemotePort() throws RemoteException {
         Cache cache = new Cache(new CacheConfiguration().name("test").maxEntriesLocalHeap(10));
         for (int i = 0; i < 10; i++) {
-            new RMICachePeer(cache, "localhost", 5010, Integer.valueOf(0), Integer.valueOf(2000));
+            new RMICachePeer(cache, "localhost", 5010, 0, 2000);
         }
     }
 
@@ -90,24 +78,22 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
     public void testCreatePeerWithSpecificRemotePort() throws RemoteException {
         Cache cache = new Cache(new CacheConfiguration().name("test").maxEntriesLocalHeap(10));
         for (int i = 0; i < 10; i++) {
-            new RMICachePeer(cache, "localhost", 5010, Integer.valueOf(45000), Integer.valueOf(2000));
+            new RMICachePeer(cache, "localhost", 5010, 45000, 2000);
         }
     }
 
 
     /**
      * See if socket.setSoTimeout(socketTimeoutMillis) works. Should throw a SocketTimeoutException
-     *
-     * @throws RemoteException
      */
     @Test
     public void testFailsIfTimeoutExceeded() throws Exception {
         CacheManager manager = new CacheManager(new Configuration().name("testFailsIfTimeoutExceeded"));
         try {
             Cache cache = new Cache(new CacheConfiguration().name("test").maxEntriesLocalHeap(10));
-            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, Integer.valueOf(0), manager, Integer.valueOf(2000));
+            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, 0, manager, 2000);
             try {
-                RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, "localhost", 5010, Integer.valueOf(1000), 2000);
+                RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, 1000, 2000);
                 peerListener.addCachePeer(cache.getName(), rmiCachePeer);
                 peerListener.init();
 
@@ -130,17 +116,15 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
     /**
      * See if socket.setSoTimeout(socketTimeoutMillis) works.
      * Should not fail because the put takes less than the timeout.
-     *
-     * @throws RemoteException
      */
     @Test
     public void testWorksIfTimeoutNotExceeded() throws Exception {
         CacheManager manager = new CacheManager(new Configuration().name("testWorksIfTimeoutNotExceeded"));
         try {
             Cache cache = new Cache(new CacheConfiguration().name("test").maxEntriesLocalHeap(10));
-            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, Integer.valueOf(0), manager, Integer.valueOf(2000));
+            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, 0, manager, 2000);
             try {
-                RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, "localhost", 5010, Integer.valueOf(2000), 0);
+                RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, 2000, 0);
 
                 peerListener.addCachePeer(cache.getName(), rmiCachePeer);
                 peerListener.init();
@@ -165,11 +149,11 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
      */
     @Test
     public void testSend() throws Exception {
-        CacheManager manager = new CacheManager(new Configuration().name("testWorksIfTimeoutNotExceeded"));
+        CacheManager manager = new CacheManager(new Configuration().name("send"));
         try {
             Cache cache = new Cache(new CacheConfiguration().name("test").maxEntriesLocalHeap(10));
-            RMICachePeer rmiCachePeer = new RMICachePeer(cache, "localhost", 5010, Integer.valueOf(0), Integer.valueOf(2100));
-            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, Integer.valueOf(0), manager, Integer.valueOf(2000));
+            RMICachePeer rmiCachePeer = new RMICachePeer(cache, "localhost", 5010, 0, 2100);
+            RMICacheManagerPeerListener peerListener = new RMICacheManagerPeerListener("localhost", 5010, 0, manager, 2000);
             manager.addCache(cache);
 
             peerListener.addCachePeer(cache.getName(), rmiCachePeer);
@@ -183,42 +167,23 @@ public class RMICacheManagerPeerIT extends AbstractRMITest {
     }
 
 
-    /**
-     * RMICachePeer that breaks in lots of interesting ways.
-     */
-    class SlowRMICachePeer extends RMICachePeer {
+    static class SlowRMICachePeer extends RMICachePeer {
 
         private final long sleepTime;
         
-        /**
-         * Constructor
-         *
-         * @param cache
-         * @param hostName
-         * @param port
-         * @param socketTimeoutMillis
-         * @throws RemoteException
-         */
-        public SlowRMICachePeer(Ehcache cache, String hostName, Integer port, Integer socketTimeoutMillis, int sleepTime)
+        public SlowRMICachePeer(Ehcache cache, int socketTimeoutMillis, int sleepTime)
                 throws RemoteException {
-            super(cache, hostName, port, Integer.valueOf(0), socketTimeoutMillis);
+            super(cache, "localhost", 5010, 0, socketTimeoutMillis);
             this.sleepTime = sleepTime;
         }
 
-        /**
-         * Puts an Element into the underlying cache without notifying listeners or updating statistics.
-         *
-         * @param element
-         * @throws java.rmi.RemoteException
-         * @throws IllegalArgumentException
-         * @throws IllegalStateException
-         */
         @Override
         public void put(Element element) throws RemoteException, IllegalArgumentException, IllegalStateException {
             try {
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException exception) {
-                LOG.error(exception.getMessage(), exception);
+                sleep(sleepTime);
+                super.put(element);
+            } catch (InterruptedException e) {
+                LOG.error("sleep of put interrupted", e);
             }
         }
     }

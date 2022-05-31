@@ -1,17 +1,17 @@
 /**
- *  Copyright Terracotta, Inc.
+ * Copyright Terracotta, Inc.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * <a href="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</a>
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.sf.ehcache.distribution;
@@ -19,14 +19,13 @@ package net.sf.ehcache.distribution;
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
 import net.sf.ehcache.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Properties;
 import java.util.StringTokenizer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Builds a factory based on RMI
@@ -88,7 +87,7 @@ public class RMICacheManagerPeerProviderFactory extends CacheManagerPeerProvider
             rmiUrl = rmiUrl.trim();
             rmiPeerProvider.registerPeer(rmiUrl);
 
-                LOG.debug("Registering peer {}", rmiUrl);
+            LOG.debug("Registering peer {}", rmiUrl);
         }
         return rmiPeerProvider;
     }
@@ -114,13 +113,13 @@ public class RMICacheManagerPeerProviderFactory extends CacheManagerPeerProvider
         String multicastPortString = PropertyUtil.extractAndLogProperty(MULTICAST_GROUP_PORT, properties);
         Integer multicastPort = Integer.valueOf(multicastPortString);
         String packetTimeToLiveString = PropertyUtil.extractAndLogProperty(MULTICAST_PACKET_TTL, properties);
-        Integer timeToLive;
+        int timeToLive;
         if (packetTimeToLiveString == null) {
-            timeToLive = Integer.valueOf(1);
+            timeToLive = 1;
             LOG.debug("No TTL set. Setting it to the default of 1, which means packets are limited to the same subnet.");
         } else {
-            timeToLive = Integer.valueOf(packetTimeToLiveString);
-            if (timeToLive.intValue() < 0 || timeToLive.intValue() > MAXIMUM_TTL) {
+            timeToLive = Integer.parseInt(packetTimeToLiveString);
+            if (timeToLive < 0 || timeToLive > MAXIMUM_TTL) {
                 throw new CacheException("The TTL must be set to a value between 0 and 255");
             }
         }

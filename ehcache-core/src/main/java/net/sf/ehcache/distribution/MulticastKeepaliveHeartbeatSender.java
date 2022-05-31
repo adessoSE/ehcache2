@@ -117,6 +117,7 @@ public class MulticastKeepaliveHeartbeatSender {
             setDaemon(true);
         }
 
+        @SuppressWarnings("BusyWait")
         @Override
         public void run() {
             while (!stopped) {
