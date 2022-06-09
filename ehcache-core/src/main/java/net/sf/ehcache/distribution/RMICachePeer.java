@@ -26,7 +26,6 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -128,9 +127,9 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @return the element, or Optional.empty(), if it does not exist.
      */
     @Override
-    public Optional<Element> getQuiet(Serializable key) throws RemoteException {
+    public Element getQuiet(Serializable key) throws RemoteException {
 
-        return Optional.ofNullable(cache.getQuiet(key));
+        return cache.getQuiet(key);
     }
 
     /**

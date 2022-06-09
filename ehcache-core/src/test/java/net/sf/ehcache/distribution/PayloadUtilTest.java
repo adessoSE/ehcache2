@@ -31,7 +31,6 @@ import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
@@ -101,7 +100,7 @@ public class PayloadUtilTest extends AbstractRMITest {
 
     @Test
     public void testBigPayload() throws IOException {
-        List<CachePeer> bigPayloadList = new ArrayList<CachePeer>();
+        List<CachePeer> bigPayloadList = new ArrayList<>();
         // create 5000 peers, each peer having cache name between 50 - 500 char length
         int peers = 5000;
         int minCacheNameSize = 50;
@@ -130,7 +129,7 @@ public class PayloadUtilTest extends AbstractRMITest {
 
     }
 
-    private void doTestBigPayLoad(List<CachePeer> bigPayloadList, int maximumPeersPerSend) throws RemoteException, IOException {
+    private void doTestBigPayLoad(List<CachePeer> bigPayloadList, int maximumPeersPerSend) throws IOException {
         List<byte[]> compressedList = PayloadUtil.createCompressedPayloadList(bigPayloadList, maximumPeersPerSend);
         // the big list cannot be compressed in 1 entry
         assertTrue(compressedList.size() > 1);
@@ -204,8 +203,8 @@ public class PayloadUtilTest extends AbstractRMITest {
             return cacheName;
         }
 
-        public Optional<Element> getQuiet(Serializable key) throws RemoteException {
-            return Optional.empty();
+        public Element getQuiet(Serializable key) throws RemoteException {
+            return null;
         }
 
         public String getUrlBase() throws RemoteException {

@@ -22,11 +22,10 @@ import java.io.Serializable;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * An interface for a cache peer to which updates are made remotely. The distribution mechanism
- * is meant to be pluggable. The requirements of RMI force this interface to exten Remote and
+ * is meant to be pluggable. The requirements of RMI force this interface to extend Remote and
  * throw RemoteException.
  * <p>
  * It is acknowledged that not all implementations will use Remote. Remote is just a marker interface like Serializable,
@@ -133,7 +132,7 @@ public interface CachePeer extends Remote {
      * @param key a serializable value
      * @return an Optional element.
      */
-    Optional<Element> getQuiet(Serializable key) throws RemoteException;
+    Element getQuiet(Serializable key) throws RemoteException;
 
     /**
      * Gets a list of elements from the cache, for a list of keys, without updating Element statistics. Time to

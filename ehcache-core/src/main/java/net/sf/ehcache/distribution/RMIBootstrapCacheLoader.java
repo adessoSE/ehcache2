@@ -53,12 +53,12 @@ public class RMIBootstrapCacheLoader implements BootstrapCacheLoader, Cloneable 
     /**
      * Whether to load asynchronously
      */
-    protected boolean asynchronous;
+    protected final boolean asynchronous;
 
     /**
      * The maximum serialized size of the elements to request from a remote cache peer during bootstrap.
      */
-    protected int maximumChunkSizeBytes;
+    protected final int maximumChunkSizeBytes;
 
     /**
      * Creates a boostrap cache loader that will work with RMI based distribution
@@ -158,9 +158,9 @@ public class RMIBootstrapCacheLoader implements BootstrapCacheLoader, Cloneable 
 
     Optional<Element> getSampleElement(CachePeer cachePeer, List<Serializable> keys) throws RemoteException {
         for (Serializable key : keys) {
-            Optional<Element> element = cachePeer.getQuiet(key);
-            if (element.isPresent() && element.get().getSerializedSize() != 0) {
-                return element;
+            Element element = cachePeer.getQuiet(key);
+            if (element != null && element.getSerializedSize() != 0) {
+                return Optional.of(element);
             }
         }
 

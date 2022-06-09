@@ -11,7 +11,6 @@ import net.sf.ehcache.config.Configuration;
 import net.sf.ehcache.config.ConfigurationFactory;
 import net.sf.ehcache.management.ManagementService;
 import net.sf.ehcache.util.RetryAssert;
-import org.assertj.core.api.Assertions;
 import org.hamcrest.collection.IsEmptyCollection;
 import org.hamcrest.core.Is;
 import org.junit.After;
@@ -33,9 +32,9 @@ import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
 import static java.util.Arrays.stream;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -91,7 +90,7 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
     public void setUp() throws Exception {
         MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
 
-        Assertions.assertThat(getActiveReplicationThreads()).isEmpty();
+        assertThat(getActiveReplicationThreads()).isEmpty();
     }
 
     @After
@@ -171,7 +170,7 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             List<Serializable> keys = cachePeer.getKeys();
             assertEquals(2000, keys.size());
 
-            Element firstElement = cachePeer.getQuiet(keys.get(0)).orElseThrow(IllegalStateException::new);
+            Element firstElement = cachePeer.getQuiet(keys.get(0));
             long size = firstElement.getSerializedSize();
             assertEquals(517, size);
 
@@ -200,7 +199,6 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             assertNotNull(element);
             cache.put(element, true);
         }
-
     }
 
 
@@ -319,7 +317,9 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
             LOG.info("Put and Propagate Synchronously Elapsed time: {} seconds", putTime);
 
             for (CacheManager manager : cluster) {
-                assertThat(manager.getName(), manager.getCache(SYNCHRONOUS_CACHE).getSize(), Is.is(2000));
+                assertThat(manager.getCache(SYNCHRONOUS_CACHE).getSize())
+                        .describedAs(manager.getName())
+                        .isEqualTo(2000);
             }
         } finally {
             destroyCluster(cluster);
@@ -330,8 +330,8 @@ public class RMICacheReplicatorPerfTest extends AbstractRMITest {
      * Enables long stabilty runs using replication to be done.
      * <p>
      * This test has been run in a profile for 15 hours without any observed issues.
-     *
      */
+    @SuppressWarnings("InfiniteLoopStatement")
     public void manualStabilityTest() {
         List<CacheManager> cluster = createCluster(5, ASYNCHRONOUS_CACHE);
         try {

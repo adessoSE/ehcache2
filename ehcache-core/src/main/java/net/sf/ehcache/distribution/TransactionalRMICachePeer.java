@@ -23,7 +23,6 @@ import net.sf.ehcache.util.CacheTransactionHelper;
 import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * An RMI based implementation of <code>CachePeer</code> supporting transactions.
@@ -68,7 +67,7 @@ public class TransactionalRMICachePeer extends RMICachePeer {
     }
 
     @Override
-    public Optional<Element> getQuiet(Serializable key) throws RemoteException {
+    public Element getQuiet(Serializable key) throws RemoteException {
         boolean started = CacheTransactionHelper.isTransactionStarted(cache);
         if (!started) {
             CacheTransactionHelper.beginTransactionIfNeeded(cache);

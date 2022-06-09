@@ -18,6 +18,7 @@ package net.sf.ehcache.event;
 
 import net.sf.ehcache.Status;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -32,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class CacheManagerEventListenerRegistry implements CacheManagerEventListener {
 
-    private volatile Status status;
+    private volatile Status status = Status.STATUS_UNINITIALISED;
 
     /**
      * A Set of CacheEventListeners keyed by listener instance.
@@ -40,15 +41,7 @@ public class CacheManagerEventListenerRegistry implements CacheManagerEventListe
      *
      * @see CacheManagerEventListener
      */
-    private final Set<CacheManagerEventListener> listeners;
-
-    /**
-     * Construct a new registry
-     */
-    public CacheManagerEventListenerRegistry() {
-        status = Status.STATUS_UNINITIALISED;
-        listeners = new CopyOnWriteArraySet<>();
-    }
+    private final Set<CacheManagerEventListener> listeners = new CopyOnWriteArraySet<>();
 
     /**
      * Adds a listener to the notification service. No guarantee is made that listeners will be
@@ -72,6 +65,11 @@ public class CacheManagerEventListenerRegistry implements CacheManagerEventListe
      */
     public boolean unregisterListener(CacheManagerEventListener cacheManagerEventListener) {
         return listeners.remove(cacheManagerEventListener);
+    }
+
+    @SuppressWarnings("unused")
+    public Set<CacheManagerEventListener> getRegisteredListeners() {
+        return new HashSet<>(listeners);
     }
 
     /**
